@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>منصة تبادل رقمية آمنة</title>
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-storage.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background-color: #f2f2f2; padding: 30px; direction: rtl; }
+    h1, h2 { color: #222; text-align: center; }
+    form, .terms, .admin-panel { background: #fff; padding: 25px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.1); max-width: 800px; margin: 30px auto; }
+    label { display: block; margin-top: 15px; font-weight: bold; }
+    textarea, input, select { width: 100%; padding: 12px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; }
+    button { margin-top: 20px; padding: 12px 25px; background-color: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+    .note, .wallets { font-size: 0.9em; color: #555; margin-top: 10px; }
+    .wallets strong { color: #000; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
+    th { background-color: #007bff; color: white; }
+    .accept { background-color: #28a745; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; }
+    .reject { background-color: #dc3545; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <h1>منصة تبادل رقمية آمنة</h1>
+  <p style="text-align:center;">تبادل حسابات، أكواد، بطاقات رقمية بين طرفين مع ضمان ضد الاحتيال</p>
+
+  <form id="exchangeForm">
+    <label>نوع المحتوى الذي ستقدمه:</label>
+    <select name="content_type" required>
+      <option value="">اختر نوع المحتوى</option>
+      <option value="حساب">حساب</option>
+      <option value="كود بطاقة">كود بطاقة</option>
+      <option value="رصيد">رصيد</option>
+      <option value="آخر">آخر</option>
+    </select>
+
+    <label>ما الذي ستقدمه للطرف الآخر؟</label>
+    <textarea name="you_offer" required></textarea>
+
+    <label>ما الذي تريده بالمقابل؟</label>
+    <textarea name="you_expect" required></textarea>
+
+    <label>بريدك الإلكتروني للتواصل:</label>
+    <input type="email" name="email" required>
+
+    <label>إثبات الدفع (صورة لقطة شاشة):</label>
+    <input type="file" name="payment_proof" accept="image/*" required>
+
+    <div class="wallets">
+      <p>💰 <strong>رسوم الخدمة:</strong> 1 دولار تُدفع قبل إرسال الطلب</p>
+      <p>🔗 <strong>Binance ID:</strong> 1045068221</p>
+      <p>💳 <strong>Bybit ID:</strong> 419983068</p>
+      <p class="note">يرجى إرسال الرسوم إلى الحساب باستخدام معرف المستخدم (ID)، وليس عنوان المحفظة.</p>
+    </div>
+
+    <button type="submit">إرسال الطلب</button>
+    <div class="note">سيتم الاحتفاظ بالبيانات مؤقتًا حتى تأكيد الطرفين. في حال الانسحاب، يتم استرجاع البيانات للطرف الآخر تلقائيًا.</div>
+  </form>
+
+  <div class="terms">
+    <h3>📜 شروط الاستخدام</h3>
+    <ul>
+      <li>الموقع يعمل كوسيط فقط ولا يتحمل مسؤولية المحتوى داخل الحسابات أو البطاقات.</li>
+      <li>يُمنع تبادل الحسابات الشخصية أو التي تحتوي على معلومات حساسة أو خاصة.</li>
+      <li>في حال عدم تأكيد الطرف الثاني خلال الوقت المحدد، يتم استرجاع البيانات للطرف الأول تلقائيًا.</li>
+      <li>يجب دفع رسوم الخدمة قبل إرسال الطلب، وإرفاق إثبات الدفع.</li>
+    </ul>
+  </div>
+
+  <div class="admin-panel">
+    <h2>📋 لوحة تحكم المشرف</h2>
+    <table id="requestsTable">
+      <thead>
+        <tr>
+          <th>نوع المحتوى</th>
+          <th>ما يقدمه</th>
+          <th>ما يريده</th>
+          <th>البريد</th>
+          <th>إثبات الدفع</th>
+          <th>الحالة</th>
+          <th>إجراء</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDmfies8d_RzxXv0WRSjm3G19a6Xxqq_70",
+      authDomain: "tebedl.firebaseapp.com",
+      projectId: "tebedl",
+      storageBucket: "tebedl.appspot.com",
+      messagingSenderId: "725353899127",
+      appId: "1:725353899127:web:6ecf5dbff260fe89a6d272",
+      measurementId: "G-WLRWVBFDDG"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    document.getElementById("exchangeForm").addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const contentType = e.target.content_type.value;
+      const youOffer = e.target.you_offer.value;
+      const youExpect = e.target.you_expect.value;
+      const email = e.target.email.value;
+      const file = e.target.payment_proof.files[0];
+
+      if (!file) return alert("يرجى إرفاق إثبات الدفع.");
+
+      try {
+        const storageRef = storage.ref().child("proofs/" + Date.now() + "_" + file.name);
+        await storageRef.put(file);
+        const fileURL = await storageRef.getDownloadURL();
+
+        await db.collection("requests").add({
+          contentType,
+          youOffer,
+          youExpect,
+          email,
+          paymentProofURL: fileURL,
+          status: "قيد المراجعة",
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        alert("✅ تم إرسال الطلب بنجاح!");
+        e.target.reset();
+      } catch (error) {
+        console.error("❌ خطأ أثناء الإرسال:", error);
+        alert("حدث خطأ أثناء إرسال الطلب.");
+      }
+    });
+
+    const tableBody = document.querySelector("#requestsTable tbody");
+
+    function renderRequest(doc) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${doc.data().contentType}</td>
+        <td>${doc.data().youOffer}</td>
+        <td>${doc.data().youExpect}</td>
+        <td>${doc.data().email}</td>
+        <td><a href="${doc.data().paymentProofURL}" target="_blank">عرض الصورة</a></td>
+        <td>${doc.data().status || "قيد المراجعة"}</td>
+        <td>
+          <button class="accept">قبول</button>
+          <button class="reject">رفض</button>
+        </td>
+      `;
+
+      row.querySelector(".accept").onclick = () => {
+        db.collection("requests").doc(doc.id).update({ status: "مقبول" });
+        row.cells[5].textContent = "مقبول";
+      };
+
+      row.querySelector(".reject").onclick = () => {
+        db.collection("requests").doc(doc.id).update({ status: "مرفوض" });
+        row.cells[5].textContent = "مرفوض";
+      };
+
+      tableBody.appendChild(row);
+    }
+
+    db.collection("requests").orderBy("timestamp", "desc").get().then(snapshot => {
+      snapshot.forEach(doc => renderRequest(doc));
+    });
+  </script>
+
+</body>
+</html>
+
